@@ -476,10 +476,10 @@ func maybeSkipArchive(env build.Environment) {
 		log.Printf("skipping archive creation because this is a PR build")
 		os.Exit(0)
 	}
-	if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
-		log.Printf("skipping archive creation because branch %q, tag %q is not on the inclusion list", env.Branch, env.Tag)
-		os.Exit(0)
-	}
+	// if env.Branch != "master" && !strings.HasPrefix(env.Tag, "v1.") {
+	// 	log.Printf("skipping archive creation because branch %q, tag %q is not on the inclusion list", env.Branch, env.Tag)
+	// 	os.Exit(0)
+	// }
 }
 
 // Builds the docker images and optionally uploads them to Docker Hub.
@@ -498,6 +498,8 @@ func doDocker(cmdline []string) {
 	// Retrieve the upload credentials and authenticate
 	user := getenvBase64("DOCKER_HUB_USERNAME")
 	pass := getenvBase64("DOCKER_HUB_PASSWORD")
+
+	https_proxy := os.Getenv("https_proxy")
 
 	if len(user) > 0 && len(pass) > 0 {
 		auther := exec.Command("docker", "login", "-u", string(user), "--password-stdin")
@@ -520,11 +522,13 @@ func doDocker(cmdline []string) {
 		tags = []string{"latest"}
 	case strings.HasPrefix(env.Tag, "v1."):
 		tags = []string{"stable", fmt.Sprintf("release-1.%d", params.VersionMinor), "v" + params.Version}
+	default:
+		tags = []string{env.Branch}
 	}
 	// If architecture specific image builds are requested, build and push them
 	if *image {
-		build.MustRunCommand("docker", "build", "--build-arg", "COMMIT="+env.Commit, "--build-arg", "VERSION="+params.VersionWithMeta, "--build-arg", "BUILDNUM="+env.Buildnum, "--tag", fmt.Sprintf("%s:TAG", *upload), ".")
-		build.MustRunCommand("docker", "build", "--build-arg", "COMMIT="+env.Commit, "--build-arg", "VERSION="+params.VersionWithMeta, "--build-arg", "BUILDNUM="+env.Buildnum, "--tag", fmt.Sprintf("%s:alltools-TAG", *upload), "-f", "Dockerfile.alltools", ".")
+		build.MustRunCommand("docker", "build", "--build-arg", "https_proxy="+https_proxy, "--build-arg", "COMMIT="+env.Commit, "--build-arg", "VERSION="+params.VersionWithMeta, "--build-arg", "BUILDNUM="+env.Buildnum, "--tag", fmt.Sprintf("%s:TAG", *upload), ".")
+		build.MustRunCommand("docker", "build", "--build-arg", "https_proxy="+https_proxy, "--build-arg", "COMMIT="+env.Commit, "--build-arg", "VERSION="+params.VersionWithMeta, "--build-arg", "BUILDNUM="+env.Buildnum, "--tag", fmt.Sprintf("%s:alltools-TAG", *upload), "-f", "Dockerfile.alltools", ".")
 
 		// Tag and upload the images to Docker Hub
 		for _, tag := range tags {
